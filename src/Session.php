@@ -31,6 +31,11 @@ final class Session
         ini_set('session.use_only_cookies', '1');
         ini_set('session.gc_maxlifetime', (string) $this->config->int('session.lifetime'));
 
+        // Debian and Ubuntu turn PHP's own collection off and clean only
+        // their default directory from cron; nothing would ever clean ours.
+        ini_set('session.gc_probability', '1');
+        ini_set('session.gc_divisor', '100');
+
         $savePath = (string) $this->config->get('session.save_path');
 
         if ($savePath !== '') {
