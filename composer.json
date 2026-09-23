@@ -1,0 +1,45 @@
+{
+    "name": "wpsimply/mail-simply",
+    "description": "A small, self-hosted webmail for IMAP and SMTP with one-time sign-on, built to sit next to a hosting control panel the way Roundcube does.",
+    "type": "project",
+    "license": "MIT",
+    "keywords": ["webmail", "imap", "smtp", "dovecot", "sso", "roundcube"],
+    "homepage": "https://github.com/wpsimply/mail-simply",
+    "support": {
+        "issues": "https://github.com/wpsimply/mail-simply/issues",
+        "source": "https://github.com/wpsimply/mail-simply"
+    },
+    "require": {
+        "php": ">=8.4",
+        "ext-dom": "*",
+        "ext-iconv": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-session": "*",
+        "ext-sodium": "*"
+    },
+    "suggest": {
+        "ext-curl": "Redeems sign-on tokens against the control panel; without it PHP's HTTP stream wrapper is used.",
+        "ext-fileinfo": "Detects the type of uploaded attachments instead of trusting the browser."
+    },
+    "autoload": {
+        "psr-4": {
+            "MailSimply\\": "src/"
+        }
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "@php tests/run.php",
+        "post-create-project-cmd": [
+            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
+            "@php -r \"foreach (['storage/sessions', 'storage/users', 'storage/uploads'] as \\$dir) { is_dir(\\$dir) || mkdir(\\$dir, 0700, true); chmod(\\$dir, 0700); }\""
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Run the test suite (needs a git clone; the Composer package leaves the tests out)."
+    }
+}

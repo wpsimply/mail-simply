@@ -1,0 +1,3 @@
+# Test fixtures only.
+alice@example.test:{PLAIN}alice-test-password
+bob@example.test:{PLAIN}bob-test-password

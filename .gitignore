@@ -1,0 +1,13 @@
+/vendor/
+/dist/
+/.env
+/config.php
+/storage/sessions/*
+/storage/users/*
+/storage/uploads/*
+!/storage/sessions/.gitignore
+!/storage/users/.gitignore
+!/storage/uploads/.gitignore
+.DS_Store
+.idea/
+.vscode/
