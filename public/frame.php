@@ -16,6 +16,8 @@ use MailSimply\UserError;
  * sanitizer: no scripts, no forms, no frames, and images only from here or
  * inline -- or from anywhere, once the reader has allowed remote content
  * (remote=1: for this message, or for every message from a trusted sender).
+ * The policy sandboxes the document the way the frame does, so it runs
+ * nothing even when it is opened in a tab of its own.
  */
 
 $config = require dirname(__DIR__).'/bootstrap.php';
@@ -32,7 +34,7 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('Referrer-Policy: no-referrer');
 header('Cache-Control: private, no-store');
-header("Content-Security-Policy: default-src 'none'; img-src {$images}; style-src 'unsafe-inline'; font-src data:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
+header("Content-Security-Policy: sandbox allow-same-origin allow-popups allow-popups-to-escape-sandbox; default-src 'none'; img-src {$images}; style-src 'unsafe-inline'; font-src data:; frame-ancestors 'self'; base-uri 'none'; form-action 'none'");
 
 if ($grant === null) {
     Http::textError(new UserError('Your session has ended. Sign in again.', 401), $lang);

@@ -19,6 +19,12 @@ use SodiumException;
  */
 final class Session
 {
+    /**
+     * How long a browser may take to come back from the panel with a token
+     * bound to its sign-on proof, signing in to the panel included.
+     */
+    private const int SIGN_ON_SECONDS = 600;
+
     public function __construct(private readonly Config $config) {}
 
     public function start(): void
@@ -42,7 +48,7 @@ final class Session
             session_save_path($savePath);
         }
 
-        session_name((string) $this->config->get('session.name'));
+        session_name($this->cookieName());
         session_set_cookie_params(['lifetime' => 0, ...$this->cookieOptions()]);
 
         session_start();
@@ -65,6 +71,9 @@ final class Session
         $_SESSION['uploads'] = bin2hex(random_bytes(16));
         $_SESSION['created_at'] = time();
         $_SESSION['seen_at'] = time();
+
+        // The proof has done its job; it may not bind a second token.
+        $this->setSignOnCookie('', time() - 3600);
 
         if ($password !== null) {
             $key = sodium_crypto_secretbox_keygen();
@@ -121,6 +130,29 @@ final class Session
         $_SESSION['seen_at'] = $now;
 
         return $grant;
+    }
+
+    /**
+     * Give this browser a fresh sign-on proof, and return the binding the
+     * panel is to tie the token it mints to. See {@see SignOn}.
+     */
+    public function startSignOn(): string
+    {
+        $proof = bin2hex(random_bytes(32));
+        $this->setSignOnCookie($proof, time() + self::SIGN_ON_SECONDS);
+        $_COOKIE[$this->signOnCookieName()] = $proof;
+
+        return SignOn::binding($proof);
+    }
+
+    /**
+     * The sign-on proof this browser holds, if any.
+     */
+    public function signOnProof(): ?string
+    {
+        $proof = $_COOKIE[$this->signOnCookieName()] ?? null;
+
+        return is_string($proof) && preg_match('/^[a-f0-9]{64}$/', $proof) === 1 ? $proof : null;
     }
 
     /**
@@ -199,7 +231,32 @@ final class Session
 
     private function keyCookieName(): string
     {
-        return $this->config->get('session.name').'Key';
+        return $this->cookieName().'Key';
+    }
+
+    private function signOnCookieName(): string
+    {
+        return $this->cookieName().'SignOn';
+    }
+
+    private function setSignOnCookie(string $value, int $expires): void
+    {
+        if (! headers_sent()) {
+            setcookie($this->signOnCookieName(), $value, [...$this->cookieOptions(), 'expires' => $expires]);
+        }
+    }
+
+    /**
+     * The session cookie's name. Over HTTPS it carries the __Host- prefix:
+     * the browser then only accepts the cookie from this exact host, so a
+     * site on a sibling subdomain -- a customer's, on a hosting server --
+     * cannot plant a session of its own in the user's browser.
+     */
+    private function cookieName(): string
+    {
+        $name = (string) $this->config->get('session.name');
+
+        return (bool) $this->config->get('session.secure') && ! str_starts_with($name, '__Host-') ? '__Host-'.$name : $name;
     }
 
     private function setKeyCookie(string $value, int $expires): void
@@ -210,14 +267,16 @@ final class Session
     }
 
     /**
-     * Both cookies end with the browser session.
+     * Both cookies end with the browser session, and are never shared with
+     * other subdomains, whatever php.ini's session.cookie_domain says.
      *
-     * @return array{path: string, secure: bool, httponly: bool, samesite: string}
+     * @return array{path: string, domain: string, secure: bool, httponly: bool, samesite: string}
      */
     private function cookieOptions(): array
     {
         return [
             'path' => '/',
+            'domain' => '',
             'secure' => (bool) $this->config->get('session.secure'),
             'httponly' => true,
             'samesite' => 'Lax',

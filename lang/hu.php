@@ -14,6 +14,7 @@ return [
     'The form expired. Try again.' => 'Az űrlap lejárt. Próbálja újra.',
     'Enter your email address and password.' => 'Adja meg az e-mail-címét és a jelszavát.',
     'The email address or password is incorrect.' => 'Hibás e-mail-cím vagy jelszó.',
+    'Too many failed sign-in attempts. Wait a few minutes and try again.' => 'Túl sok sikertelen bejelentkezési kísérlet. Várjon néhány percet, és próbálja újra.',
     'You are not signed in, or your session has ended.' => 'Nincs bejelentkezve, vagy a munkamenete lejárt.',
     'Open webmail again from your control panel to start a new session.' => 'Nyissa meg újra a webmailt a vezérlőpultból.',
     'Go to the control panel' => 'Tovább a vezérlőpultra',

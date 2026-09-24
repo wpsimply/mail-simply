@@ -50,7 +50,7 @@ Make the storage directories writable by the PHP-FPM pool user and nobody else:
 
 ```sh
 chown -R www-data:www-data storage
-chmod 700 storage/sessions storage/users storage/uploads
+chmod 700 storage/sessions storage/users storage/uploads storage/throttle
 ```
 
 Point the web server at `public/`, and let it run `index.php`, `api.php`, `frame.php`, `attachment.php`, `upload.php`, `login.php`, `sso.php` and `logout.php`. Attachments are uploaded one file per request, so allow request bodies at least as large as `MAIL_SIMPLY_MAX_ATTACHMENTS` (25 MB by default) in the web server and in PHP's `upload_max_filesize` and `post_max_size`. There are examples for nginx and PHP-FPM in [`examples/`](examples).
@@ -71,8 +71,11 @@ The settings that matter:
 | `MAIL_SIMPLY_SMTP_HOST`, `_PORT`, `_ENCRYPTION` | The submission server mail is sent through. |
 | `MAIL_SIMPLY_IMAP_VERIFY`, `MAIL_SIMPLY_IMAP_CA` (and `SMTP_`) | Certificate checks. Keep verification on; give a CA file for a private certificate. |
 | `MAIL_SIMPLY_SSO_URL`, `MAIL_SIMPLY_SSO_SECRET` | Where sign-on tokens are redeemed, and the secret that proves it is us asking. |
+| `MAIL_SIMPLY_SSO_ISSUE_URL` | The panel page `sso.php?start` sends the browser to, for a token bound to it. See below. |
+| `MAIL_SIMPLY_SSO_REQUIRE_BINDING` | `true` refuses tokens that are not bound to a browser. Default `false`. |
 | `MAIL_SIMPLY_MASTER_USER`, `MAIL_SIMPLY_MASTER_PASSWORD` | The Dovecot master user sign-on sessions authenticate as. |
 | `MAIL_SIMPLY_LOGIN_FORM` | The password form. `false` where the panel is the only way in. |
+| `MAIL_SIMPLY_LOGIN_MAX_ATTEMPTS`, `_PER_CLIENT` | Failed sign-ins allowed in 15 minutes, per address (default 5) and per client address (default 30), before the form refuses. `0` turns a limit off. |
 | `MAIL_SIMPLY_SESSION_SECURE` | Keep `true` in production; `false` only for local HTTP. |
 | `MAIL_SIMPLY_MAX_ATTACHMENTS` | Bytes of attachments one message may carry. Default 25 MB. |
 | `MAIL_SIMPLY_LANGUAGE` | `en` or `hu`, when neither the user nor the browser asks for one. |
@@ -83,10 +86,11 @@ See [`.env.example`](.env.example) for all of them.
 
 ### From a control panel
 
-The panel holds no mailbox password — it stores them hashed — so it vouches for the mailbox instead:
+The panel holds no mailbox password — it stores them hashed — so it vouches for the mailbox instead. Each token is bound to the browser that asked for it, so a link can only be used by the person it was minted for:
 
-1. The panel mints a random token, 32–64 bytes hex-encoded, remembers which mailbox it is for, and redirects the browser to `https://webmail.example.com/sso.php?token=<token>`.
-2. Mail Simply redeems it, server to server:
+1. The panel's "Open webmail" button sends the browser to `https://webmail.example.com/sso.php?start`, with any parameters the panel needs to know which mailbox is meant (`&mailbox=42`). Mail Simply gives the browser a random proof in a cookie and sends it on to `MAIL_SIMPLY_SSO_ISSUE_URL` with those parameters and `binding=<hash of the proof>`.
+2. The panel checks that the user is signed in to the panel and that the mailbox is theirs, mints a random token, 32–64 bytes hex-encoded, remembers which mailbox and which `binding` it is for, and redirects the browser to `https://webmail.example.com/sso.php?token=<token>`. Never show the link or let it be copied.
+3. Mail Simply redeems it, server to server:
 
    ```
    POST {MAIL_SIMPLY_SSO_URL}/{token}
@@ -97,13 +101,15 @@ The panel holds no mailbox password — it stores them hashed — so it vouches 
    The panel answers `200` with the mailbox, and spends the token:
 
    ```json
-   { "address": "info@example.com", "name": "Example Ltd" }
+   { "address": "info@example.com", "name": "Example Ltd", "binding": "<the binding it was sent>" }
    ```
 
-   Anything else — unknown, expired, spent, a wrong secret — is a refusal. Answering `404` for all of them keeps a caller without the secret from telling a real token from an invented one. `name` is optional; it is the name mail is sent under until the user sets their own.
-3. The session opens the mailbox as the Dovecot master user: over SASL PLAIN it authenticates (authcid) on the mailbox's behalf (authzid), for IMAP and for SMTP submission alike. No mailbox password is involved, and the session's username is the plain address, so the From header is the customer's own.
+   The token only signs in the browser holding the proof `binding` was made from. Anything else — unknown, expired, spent, a wrong secret — is a refusal. Answering `404` for all of them keeps a caller without the secret from telling a real token from an invented one. `name` is optional; it is the name mail is sent under until the user sets their own.
+4. The session opens the mailbox as the Dovecot master user: over SASL PLAIN it authenticates (authcid) on the mailbox's behalf (authzid), for IMAP and for SMTP submission alike. No mailbox password is involved, and the session's username is the plain address, so the From header is the customer's own.
 
 A token for another mailbox replaces whatever session the browser had open. Reloading a spent sign-on URL lands back in the session it opened.
+
+Without the binding, anyone given a link can open it, and whoever minted it can sign someone else into their own mailbox — and read what that person then writes. A token redeemed without `binding` is still accepted, so a panel can move to bound tokens at its own pace; once it binds every token, set `MAIL_SIMPLY_SSO_REQUIRE_BINDING=true` to refuse any that are not.
 
 Dovecot needs a master passdb that continues to the mailbox's own passdb, so a mailbox that may not sign in stays shut even to the master user:
 
@@ -122,18 +128,22 @@ The master user's credentials are used for sign-on sessions only. The password f
 
 The sign-in page asks for the address and password, and checks them against the IMAP server. `index.php?user=info@example.com` fills the address in. The password is kept for the session, encrypted, under a key that lives only in a cookie of its own.
 
+After 5 failed sign-ins for one address, or 30 from one client address, within 15 minutes, the form refuses without asking the IMAP server until the oldest failures age out. The client address is `REMOTE_ADDR`: behind a proxy, let the web server set the real one (nginx's `real_ip` module), or every visitor shares the proxy's count.
+
 ## Security notes
 
 - **Message HTML is cleaned on the server** with PHP's HTML5 parser, and written out again from an allowlist of elements and attributes: no script, no event handlers, no forms, frames, SVG or MathML, no `javascript:` or `data:` links, and CSS without anything that runs or loads. Writing a fresh copy, rather than deleting what looks bad, keeps parser differentials out.
 - **It is then shown in a sandboxed frame** (`frame.php`) without `allow-scripts`, under a Content-Security-Policy of its own: `default-src 'none'`, images only from this origin and inline, and no forms. Links open in a new tab without a referrer.
 - **Remote content is off by default.** Images and styles from the web are left out until the reader allows them — for the message, or always for a sender or domain — and the frame's policy blocks them even if the cleaning were to miss one.
 - **Attachments are downloads.** Only images are shown in place; every attachment response carries `Content-Security-Policy: sandbox`, so an HTML file opened in a tab runs nothing and reaches nothing from this origin.
-- Sign-on tokens are redeemed server to server with a shared secret, never trusted from the URL alone. Pages are sent with `Referrer-Policy: no-referrer`, so the token URL does not leak to other sites.
+- Sign-on tokens are redeemed server to server with a shared secret, never trusted from the URL alone, and only sign in the browser they were minted for.
+- Over HTTPS the session cookies carry the `__Host-` prefix and no domain, so a site on a sibling subdomain (a customer's, on a shared server) cannot plant a session in the user's browser.
+- A message quoted into the editor, which is part of the page rather than a frame, stays inside the editor: it cannot be laid over the interface. Pages are sent with `Referrer-Policy: no-referrer`, so the token URL does not leak to other sites.
 - Every change needs the session's CSRF token. Sessions end after `MAIL_SIMPLY_SESSION_IDLE_TIMEOUT` seconds of inactivity, or after `MAIL_SIMPLY_SESSION_LIFETIME` seconds regardless.
 - A password session's password is encrypted in the session file under a key held only in a cookie; the file alone gives nothing away.
 - Uploads belong to the session that made them, in a directory named after a random key in the session, and are deleted once sent, or after a day.
 - Settings and collected addresses are kept in `storage/users`, one file per mailbox, named after a hash of the address.
-- Failed logins are slowed down by Dovecot's own authentication penalty. Put the sign-in page behind a rate limit in the web server as well if it faces the internet.
+- Failed logins are limited per address and per client address by the app (see [With a password](#with-a-password)), and slowed down by Dovecot's own authentication penalty.
 
 ## Keyboard shortcuts
 

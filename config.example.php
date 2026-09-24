@@ -44,6 +44,11 @@ return [
         'url' => null,
         'secret' => null,
         'timeout' => 5,
+        // The panel page that mints a token bound to the browser:
+        // sso.php?start sends the browser there with ?binding=<hash>.
+        'issue_url' => null,
+        // Once the panel binds every token, refuse any token that is not.
+        'require_binding' => false,
     ],
 
     'master' => [
@@ -54,6 +59,12 @@ return [
     'login' => [
         'enabled' => true,
         'domain' => null,
+        // Failed sign-ins allowed in 15 minutes before the form refuses, per
+        // address and per client address; 0 for no limit. Behind a proxy,
+        // let the web server set the real client address, or use 0 for the
+        // per-client limit.
+        'max_attempts' => 5,
+        'max_attempts_per_client' => 30,
     ],
 
     'session' => [
@@ -67,6 +78,7 @@ return [
     'storage' => [
         'users' => __DIR__.'/storage/users',
         'uploads' => __DIR__.'/storage/uploads',
+        'throttle' => __DIR__.'/storage/throttle',
     ],
 
     'limits' => [

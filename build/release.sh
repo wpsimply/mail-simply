@@ -34,8 +34,8 @@ done
 printf '%s\n' "$version" > "$app/VERSION"
 
 # Writable at runtime, empty in the archive.
-mkdir -p "$app/storage/sessions" "$app/storage/users" "$app/storage/uploads"
-chmod 700 "$app/storage/sessions" "$app/storage/users" "$app/storage/uploads"
+mkdir -p "$app/storage/sessions" "$app/storage/users" "$app/storage/uploads" "$app/storage/throttle"
+chmod 700 "$app/storage/sessions" "$app/storage/users" "$app/storage/uploads" "$app/storage/throttle"
 
 # Nothing from a developer's machine or git may ride along.
 find "$app" \( -name '.git*' -o -name '.DS_Store' -o -name '*.swp' \) -exec rm -rf {} +

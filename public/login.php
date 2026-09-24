@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use MailSimply\Imap\AuthenticationFailed;
 use MailSimply\Imap\Client;
+use MailSimply\LoginThrottle;
 use MailSimply\Mailbox;
 use MailSimply\Session;
 
@@ -44,17 +45,26 @@ if ($address === '' || $password === '' || strlen($address) > 254 || strlen($pas
     $fail('Enter your email address and password.', $address);
 }
 
+$throttle = new LoginThrottle($config->string('storage.throttle'), $config->int('login.max_attempts'), $config->int('login.max_attempts_per_client'));
+$client = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+
+if ($throttle->blocked($address, $client)) {
+    $fail('Too many failed sign-in attempts. Wait a few minutes and try again.', $address);
+}
+
 try {
     $imap = Client::connect(Mailbox::serverOptions($config, 'imap'));
     $imap->authenticate($address, $password);
     $imap->logout();
 } catch (AuthenticationFailed) {
+    $throttle->failed($address, $client);
     $fail('The email address or password is incorrect.', $address);
 } catch (Throwable $e) {
     error_log('mail-simply: '.$e->getMessage());
     $fail('The mail server cannot be reached right now. Try again in a moment.', $address);
 }
 
+$throttle->succeeded($address);
 $session->signIn($address, '', $password);
 
 header('Location: ./');

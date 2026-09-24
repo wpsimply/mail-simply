@@ -347,6 +347,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .editor-toolbar .sep { width: 1px; height: 18px; margin: 0 4px; background: var(--border); }
 .editor-wrap { flex: 1; min-height: 0; display: flex; }
 .editor { flex: 1; min-height: 0; overflow: auto; padding: 14px 18px; outline: none; line-height: 1.55; overflow-wrap: anywhere; }
+/* A quoted message's HTML lands in the editors, on the page itself: whatever
+   it positions stays inside the editor, and cannot be laid over the app. */
+.editor, .small-editor { contain: paint; }
 .editor.plain { border: 0; border-radius: 0; resize: none; font: 13.5px/1.5 var(--mono); box-shadow: none !important; }
 .editor img { max-width: 100%; height: auto; }
 .editor p { margin: 0 0 .7em; }

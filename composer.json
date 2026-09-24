@@ -36,7 +36,7 @@
         "test": "@php tests/run.php",
         "post-create-project-cmd": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
-            "@php -r \"foreach (['storage/sessions', 'storage/users', 'storage/uploads'] as \\$dir) { is_dir(\\$dir) || mkdir(\\$dir, 0700, true); chmod(\\$dir, 0700); }\""
+            "@php -r \"foreach (['storage/sessions', 'storage/users', 'storage/uploads', 'storage/throttle'] as \\$dir) { is_dir(\\$dir) || mkdir(\\$dir, 0700, true); chmod(\\$dir, 0700); }\""
         ]
     },
     "scripts-descriptions": {

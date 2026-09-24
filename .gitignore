@@ -8,6 +8,8 @@
 !/storage/sessions/.gitignore
 !/storage/users/.gitignore
 !/storage/uploads/.gitignore
+/storage/throttle/*
+!/storage/throttle/.gitignore
 .DS_Store
 .idea/
 .vscode/

@@ -82,11 +82,22 @@ final class Mailbox
      */
     public static function serverOptions(Config $config, string $server): array
     {
+        $host = $config->string($server.'.host');
+        $port = $config->int($server.'.port');
         $encryption = strtolower($config->string($server.'.encryption'));
 
+        // Roundcube's spelling, carried over from its configuration: the
+        // scheme names the encryption (ssl:// implicit TLS, tls:// STARTTLS)
+        // and a port may ride along. Read as it was meant, not as a host name.
+        if (preg_match('#^(ssl|tls|starttls)://([^:/]+)(?::(\d+))?/?$#i', $host, $match) === 1) {
+            $encryption = strtolower($match[1]) === 'ssl' ? 'ssl' : 'starttls';
+            $host = $match[2];
+            $port = isset($match[3]) ? (int) $match[3] : ($encryption === 'ssl' ? ($server === 'imap' ? 993 : 465) : $port);
+        }
+
         return [
-            'host' => $config->string($server.'.host'),
-            'port' => $config->int($server.'.port'),
+            'host' => $host,
+            'port' => $port,
             'encryption' => in_array($encryption, ['ssl', 'tls', 'starttls', 'none'], true) ? ($encryption === 'tls' ? 'ssl' : $encryption) : 'starttls',
             'verify' => (bool) $config->get($server.'.verify', true),
             'ca_file' => $config->string($server.'.ca_file') ?: null,
@@ -1005,7 +1016,7 @@ final class Mailbox
             };
         }
 
-        if ($e instanceof RuntimeException && (str_contains($e->getMessage(), 'Could not connect') || str_contains($e->getMessage(), 'stopped answering') || str_contains($e->getMessage(), 'closed the connection'))) {
+        if ($e instanceof RuntimeException && (str_contains($e->getMessage(), 'Could not connect') || str_contains($e->getMessage(), 'stopped answering') || str_contains($e->getMessage(), 'closed the connection') || str_contains($e->getMessage(), 'TLS negotiation') || str_contains($e->getMessage(), 'does not offer STARTTLS'))) {
             error_log('mail-simply: '.$e->getMessage());
 
             return new UserError('The mail server cannot be reached right now. Try again in a moment.', 503);

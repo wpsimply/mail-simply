@@ -132,12 +132,20 @@ final class Config
                 'url' => null,
                 'secret' => null,
                 'timeout' => 5,
+                // Where sso.php?start sends the browser for a bound token.
+                'issue_url' => null,
+                // Refuse tokens that are not bound to a browser.
+                'require_binding' => false,
             ],
             'login' => [
                 // The password form. Sign-on keeps working without it.
                 'enabled' => true,
                 // Appended to a bare user name typed into the form.
                 'domain' => null,
+                // Failed sign-ins allowed in 15 minutes, per address and per
+                // client address, before the form refuses; 0 for no limit.
+                'max_attempts' => 5,
+                'max_attempts_per_client' => 30,
             ],
             'session' => [
                 'save_path' => $root.'/storage/sessions',
@@ -151,6 +159,8 @@ final class Config
                 'users' => $root.'/storage/users',
                 // Attachments uploaded for a message not yet sent.
                 'uploads' => $root.'/storage/uploads',
+                // Failed sign-in counts, for the login form's limits.
+                'throttle' => $root.'/storage/throttle',
             ],
             'limits' => [
                 'page_size' => 50,

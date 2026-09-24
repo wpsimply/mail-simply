@@ -49,7 +49,12 @@ final class Socket
         stream_context_set_options($this->stream, ['ssl' => $this->tlsOptions()]);
 
         if (@stream_socket_enable_crypto($this->stream, true, STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT) !== true) {
-            throw new RuntimeException(sprintf('TLS negotiation with %s failed.', $this->options['host']));
+            // OpenSSL's own words say whether it was the certificate (a name
+            // that does not match the host, an unknown authority) or the
+            // handshake itself, which is the whole difference in the fix.
+            $reason = trim(str_replace('stream_socket_enable_crypto(): ', '', (string) (error_get_last()['message'] ?? '')));
+
+            throw new RuntimeException(sprintf('TLS negotiation with %s:%d failed. %s', $this->options['host'], $this->options['port'], $reason));
         }
     }
 

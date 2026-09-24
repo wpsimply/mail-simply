@@ -55,6 +55,24 @@ final class UnitTest extends TestCase
         self::assertTrue(! Config::fromArray('/app', array_replace_recursive($complete, ['sso' => ['secret' => null]]))->singleSignOn());
     }
 
+    public function testRoundcubeStyleHostsAreReadAsMeant(): void
+    {
+        $options = static fn (array $imap, array $smtp = []): array => [
+            \MailSimply\Mailbox::serverOptions(Config::fromArray('/app', ['imap' => $imap]), 'imap'),
+            \MailSimply\Mailbox::serverOptions(Config::fromArray('/app', ['smtp' => $smtp]), 'smtp'),
+        ];
+
+        [$imap] = $options(['host' => 'ssl://pigeon.wpsimply.io']);
+        self::assertSame(['pigeon.wpsimply.io', 993, 'ssl'], [$imap['host'], $imap['port'], $imap['encryption']]);
+
+        [$imap, $smtp] = $options(['host' => 'tls://mail.example.com:1143'], ['host' => 'ssl://mail.example.com']);
+        self::assertSame(['mail.example.com', 1143, 'starttls'], [$imap['host'], $imap['port'], $imap['encryption']]);
+        self::assertSame(['mail.example.com', 465, 'ssl'], [$smtp['host'], $smtp['port'], $smtp['encryption']]);
+
+        [$imap] = $options(['host' => 'mail.example.com', 'port' => 143, 'encryption' => 'starttls']);
+        self::assertSame(['mail.example.com', 143, 'starttls'], [$imap['host'], $imap['port'], $imap['encryption']], 'Plain hosts are left alone.');
+    }
+
     public function testLanguageIsNegotiated(): void
     {
         self::assertSame('hu', Lang::negotiate('hu', 'en-US,en', 'en'));

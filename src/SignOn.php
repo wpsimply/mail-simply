@@ -18,14 +18,30 @@ use RuntimeException;
  *   POST {sso.url}/{token}
  *   Authorization: Bearer {sso.secret}
  *
- *   200 {"address": "info@example.com", "name": "Example Ltd"}
+ *   200 {"address": "info@example.com", "name": "Example Ltd", "binding": "…"}
  *
  * Anything else means no. The mailbox is then opened as Dovecot's master user
  * on the address's behalf; no mailbox password is involved anywhere.
+ *
+ * A token can also be bound to the browser that asked for it. Sign-on then
+ * starts here: sso.php?start gives the browser a random proof in a cookie and
+ * sends it to the panel (sso.issue_url) with the proof's hash, the panel keeps
+ * that hash with the token it mints and hands it back as "binding" when the
+ * token is redeemed, and the token only signs in a browser holding the proof.
+ * Someone who sends another person a link minted for their own mailbox can
+ * then not sign that person into it.
  */
 final class SignOn
 {
     public function __construct(private readonly Config $config) {}
+
+    /**
+     * The binding the panel keeps with a token for the given proof.
+     */
+    public static function binding(string $proof): string
+    {
+        return hash('sha256', $proof);
+    }
 
     public static function isToken(string $token): bool
     {
@@ -33,9 +49,10 @@ final class SignOn
     }
 
     /**
+     * @param  ?string  $proof  the sign-on proof this browser holds, if any
      * @return array{address: string, name: string}|null
      */
-    public function redeem(string $token): ?array
+    public function redeem(string $token, ?string $proof = null): ?array
     {
         if (! $this->config->singleSignOn() || ! self::isToken($token)) {
             return null;
@@ -52,9 +69,38 @@ final class SignOn
         }
 
         $payload = json_decode($body, true);
-        $address = is_array($payload) && is_string($payload['address'] ?? null) ? trim($payload['address']) : '';
+
+        return is_array($payload) ? $this->accept($payload, $proof) : null;
+    }
+
+    /**
+     * The mailbox the panel's answer names, if this browser may open it.
+     *
+     * @param  array<mixed>  $payload
+     * @param  ?string  $proof  the sign-on proof this browser holds, if any
+     * @return array{address: string, name: string}|null
+     */
+    public function accept(array $payload, ?string $proof): ?array
+    {
+        $address = is_string($payload['address'] ?? null) ? trim($payload['address']) : '';
 
         if ($address === '' || ! str_contains($address, '@') || strlen($address) > 254) {
+            return null;
+        }
+
+        // The panel has spent the token either way, so a link meant for
+        // another browser is not tried twice.
+        $binding = $payload['binding'] ?? null;
+
+        if ($binding === null && $this->config->bool('sso.require_binding')) {
+            error_log('mail-simply: a sign-on token that is not bound to a browser was refused.');
+
+            return null;
+        }
+
+        if ($binding !== null && (! is_string($binding) || $proof === null || ! hash_equals($binding, self::binding($proof)))) {
+            error_log('mail-simply: a sign-on token was opened in a browser other than the one it was issued to.');
+
             return null;
         }
 
