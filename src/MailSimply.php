@@ -10,7 +10,7 @@ final class MailSimply
      * The application version. A release is tagged v<VERSION>, and
      * build/release.sh refuses a tag that says otherwise.
      */
-    public const string VERSION = '0.1.0';
+    public const string VERSION = '1.1.0';
 
     /**
      * Get the formatted version.
