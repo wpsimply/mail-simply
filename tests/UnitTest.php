@@ -293,6 +293,35 @@ final class UnitTest extends TestCase
         self::assertNotContains(base64_encode("alice@example.test\0webmail@example.test\0master-secret"), $transcript);
     }
 
+    public function testTheSignInPageShowsTheVersionAndVersionsItsAssets(): void
+    {
+        $home = $this->tempDir();
+        mkdir($home.'/storage/sessions', 0700, true);
+        $port = random_int(40000, 49000);
+        $server = proc_open(
+            [PHP_BINARY, '-S', '127.0.0.1:'.$port, '-t', dirname(__DIR__).'/public'],
+            [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']],
+            $pipes,
+            null,
+            ['MAIL_SIMPLY_HOME' => $home, 'MAIL_SIMPLY_SESSION_SECURE' => 'false', 'MAIL_SIMPLY_LOG' => '/dev/null'],
+        );
+
+        try {
+            for ($i = 0, $page = false; $i < 50 && $page === false; $i++) {
+                usleep(100000);
+                $page = @file_get_contents('http://127.0.0.1:'.$port.'/');
+            }
+        } finally {
+            proc_terminate($server);
+            proc_close($server);
+        }
+
+        self::assertTrue(is_string($page), 'The sign-in page did not load.');
+        self::assertNotContains('Warning', $page);
+        self::assertContains('Mail Simply v'.MailSimply::VERSION, $page);
+        self::assertContains('assets/app.css?v='.MailSimply::VERSION, $page, 'A release busts the browser cache of the last one.');
+    }
+
     public function testProblemsAreKeptPerMailboxNewestFirstInTheReadersLanguage(): void
     {
         $dir = $this->tempDir();

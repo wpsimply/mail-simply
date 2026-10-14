@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use MailSimply\Http;
 use MailSimply\Lang;
+use MailSimply\MailSimply;
 use MailSimply\Session;
 
 $config = require dirname(__DIR__).'/bootstrap.php';
@@ -17,8 +18,7 @@ $lang = Http::lang($config, $grant['address'] ?? null);
 $t = static fn (string $text, array $replace = []): string => htmlspecialchars($lang->get($text, $replace), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $e = static fn (?string $value): string => htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 $title = $config->string('title');
-$version = trim((string) @file_get_contents(dirname(__DIR__).'/VERSION')) ?: 'dev';
-$asset = static fn (string $path): string => $path.'?v='.rawurlencode($version);
+$asset = static fn (string $path): string => $path.'?v='.rawurlencode(MailSimply::VERSION);
 $panelUrl = $config->string('panel_url');
 $supportUrl = $config->string('support_url');
 
@@ -77,6 +77,7 @@ if ($grant === null) {
 <?php if ($panelUrl !== '') { ?>
             <p class="muted small"><a href="<?= $e($panelUrl) ?>" rel="noopener"><?= $t('Go to the control panel') ?></a></p>
 <?php } ?>
+            <p class="version muted small">Mail Simply <?= $e(MailSimply::version()) ?></p>
         </div>
     </main>
 <?php } else { ?>
@@ -118,6 +119,7 @@ if ($grant === null) {
                     <input type="hidden" name="csrf" :value="csrf">
                     <button type="submit" x-text="t('Sign out')"></button>
                 </form>
+                <div class="menu-version muted small">Mail Simply <?= $e(MailSimply::version()) ?></div>
             </div>
         </div>
     </header>

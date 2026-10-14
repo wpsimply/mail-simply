@@ -132,6 +132,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .menu-items > button:hover, .menu-items > a:hover, .menu-items form button:hover { background: var(--hover); }
 .menu-items form { margin: 0; }
 .menu-heading { display: flex; flex-direction: column; padding: 8px 10px; border-bottom: 1px solid var(--border); margin-bottom: 4px; }
+.menu-version { padding: 6px 10px 2px; border-top: 1px solid var(--border); margin-top: 4px; }
 
 .spinner {
     display: inline-block; width: 22px; height: 22px;
@@ -163,6 +164,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .login label span { font-weight: 500; }
 .login input { width: 100%; }
 .login .button { margin-top: 6px; min-height: 38px; }
+.signed-out .version { margin: 18px 0 0; text-align: center; }
 
 /* ---- Layout ---- */
 
