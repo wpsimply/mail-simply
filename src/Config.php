@@ -162,6 +162,10 @@ final class Config
                 // Failed sign-in counts, for the login form's limits.
                 'throttle' => $root.'/storage/throttle',
             ],
+            'log' => [
+                // A file, or "stderr" for a container's own log.
+                'path' => $root.'/storage/logs/mail-simply.log',
+            ],
             'limits' => [
                 'page_size' => 50,
                 // Bytes of attachments one message may carry, all together.

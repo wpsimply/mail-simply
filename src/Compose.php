@@ -175,7 +175,7 @@ final class Compose
             $this->mailbox->append($sent, $message['builder']->build(true), ['\\Seen']);
         } catch (Throwable $e) {
             // Sent is sent; a missing copy is reported, never a failure.
-            error_log('mail-simply: saving to the sent folder failed: '.$e->getMessage());
+            Log::warning('Saving to the sent folder failed.', ['address' => $this->mailbox->address, 'error' => $e->getMessage()]);
             $savedToSent = false;
         }
 
@@ -295,11 +295,15 @@ final class Compose
     {
         $options = Mailbox::serverOptions($this->config, 'smtp');
         $hostname = (string) ($_SERVER['SERVER_NAME'] ?? gethostname() ?: 'localhost');
+        $context = [
+            'address' => $this->mailbox->address,
+            'server' => sprintf('%s:%d (%s)', $options['host'], $options['port'], $options['encryption']),
+        ];
 
         try {
             $smtp = Smtp::connect($options, preg_replace('/[^A-Za-z0-9.-]/', '', $hostname) ?: 'localhost');
         } catch (RuntimeException $e) {
-            error_log('mail-simply: '.$e->getMessage());
+            Log::error('Sending failed: the SMTP server could not be reached.', [...$context, 'error' => $e->getMessage()]);
 
             throw new UserError('The mail server cannot be reached right now. Your message was not sent.', 503);
         }
@@ -311,19 +315,40 @@ final class Compose
                         ? $smtp->authenticate($this->config->string('master.user'), $this->config->string('master.password'), $this->mailbox->address)
                         : $smtp->authenticate($this->mailbox->address, (string) $this->grant['password']);
                 } catch (Rejected $e) {
-                    error_log('mail-simply: SMTP authentication failed: '.$e->reply);
+                    Log::error('Sending failed: the SMTP server refused the sign-in.', [
+                        ...$context,
+                        'master' => $this->grant['master'] ? $this->config->string('master.user') : null,
+                        'reply' => $e->reply,
+                        'transcript' => $smtp->transcript(),
+                    ]);
 
                     throw new UserError('The mail server did not accept this sign-in. Your message was not sent.', 502);
                 }
             }
 
-            $smtp->send(Address::asciiDomain($this->mailbox->address), $builder->recipients(), $builder->build(false));
+            $recipients = $builder->recipients();
+            $smtp->send(Address::asciiDomain($this->mailbox->address), $recipients, $builder->build(false));
+
+            Log::info('Message sent.', [...$context, 'messageId' => $builder->messageId(), 'recipients' => count($recipients)]);
         } catch (Rejected $e) {
+            Log::error('Sending failed: the SMTP server refused the message.', [
+                ...$context,
+                'recipient' => $e->recipient,
+                'reply' => $e->reply,
+                'transcript' => $smtp->transcript(),
+            ]);
+
             throw new UserError(
                 $e->recipient !== null ? 'The mail server refused :address: :reason' : 'The mail server refused the message: :reason',
                 422,
                 ['address' => (string) $e->recipient, 'reason' => $e->reply],
             );
+        } catch (UserError $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            Log::error('Sending failed.', [...$context, 'error' => $e, 'transcript' => $smtp->transcript()]);
+
+            throw $e;
         } finally {
             $smtp->quit();
         }

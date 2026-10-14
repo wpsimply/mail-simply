@@ -24,6 +24,10 @@ ob_start();
 require dirname(__DIR__).'/bootstrap.php';
 require __DIR__.'/TestCase.php';
 
+// What the code under test logs is not the test output, nor the checkout's
+// own log.
+\MailSimply\Log::configure(\MailSimply\Config::fromArray(dirname(__DIR__), ['log' => ['path' => '/dev/null']]));
+
 $filter = $argv[1] ?? null;
 $results = ['pass' => 0, 'fail' => 0, 'skip' => 0];
 $failures = [];

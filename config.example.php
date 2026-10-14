@@ -81,6 +81,11 @@ return [
         'throttle' => __DIR__.'/storage/throttle',
     ],
 
+    'log' => [
+        // A file, or "stderr" for a container's own log.
+        'path' => __DIR__.'/storage/logs/mail-simply.log',
+    ],
+
     'limits' => [
         'page_size' => 50,
         // Bytes of attachments one message may carry, all together. Keep

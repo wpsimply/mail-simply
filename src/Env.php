@@ -60,6 +60,7 @@ final class Env
         'MAIL_SIMPLY_USERS_DIR' => ['storage.users', 'string'],
         'MAIL_SIMPLY_UPLOADS_DIR' => ['storage.uploads', 'string'],
         'MAIL_SIMPLY_THROTTLE_DIR' => ['storage.throttle', 'string'],
+        'MAIL_SIMPLY_LOG' => ['log.path', 'string'],
         'MAIL_SIMPLY_PAGE_SIZE' => ['limits.page_size', 'int'],
         'MAIL_SIMPLY_MAX_ATTACHMENTS' => ['limits.attachments', 'int'],
         'MAIL_SIMPLY_MAX_RECIPIENTS' => ['limits.recipients', 'int'],

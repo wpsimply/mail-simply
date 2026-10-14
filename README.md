@@ -78,6 +78,7 @@ The settings that matter:
 | `MAIL_SIMPLY_LOGIN_MAX_ATTEMPTS`, `_PER_CLIENT` | Failed sign-ins allowed in 15 minutes, per address (default 5) and per client address (default 30), before the form refuses. `0` turns a limit off. |
 | `MAIL_SIMPLY_SESSION_SECURE` | Keep `true` in production; `false` only for local HTTP. |
 | `MAIL_SIMPLY_MAX_ATTACHMENTS` | Bytes of attachments one message may carry. Default 25 MB. |
+| `MAIL_SIMPLY_LOG` | Where failures, and every message sent, are logged. Default `storage/logs/mail-simply.log`; `stderr` for a container's log. |
 | `MAIL_SIMPLY_LANGUAGE` | `en` or `hu`, when neither the user nor the browser asks for one. |
 
 See [`.env.example`](.env.example) for all of them.
@@ -179,7 +180,7 @@ The mail server tests empty the test mailboxes as they go, so never point them a
 
 ## Releasing
 
-Set the new version in `VERSION`, commit, then push a tag:
+Set the new version in `MailSimply::VERSION` (`src/MailSimply.php`), commit, then push the matching tag. `build/release.sh` refuses a tag that disagrees with it. The version goes out on every message as `User-Agent: mail-simply/<version>`, and on sign-on requests to the panel.
 
 ```sh
 git tag v0.1.0 && git push origin v0.1.0

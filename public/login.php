@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use MailSimply\Imap\AuthenticationFailed;
 use MailSimply\Imap\Client;
+use MailSimply\Log;
 use MailSimply\LoginThrottle;
 use MailSimply\Mailbox;
 use MailSimply\Session;
@@ -60,7 +61,7 @@ try {
     $throttle->failed($address, $client);
     $fail('The email address or password is incorrect.', $address);
 } catch (Throwable $e) {
-    error_log('mail-simply: '.$e->getMessage());
+    Log::error('Signing in with a password failed.', ['address' => $address, 'error' => $e->getMessage()]);
     $fail('The mail server cannot be reached right now. Try again in a moment.', $address);
 }
 

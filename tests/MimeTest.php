@@ -6,6 +6,7 @@ namespace MailSimply\Tests;
 
 use MailSimply\Imap\Client;
 use MailSimply\Imap\Parser;
+use MailSimply\MailSimply;
 use MailSimply\Mime\Address;
 use MailSimply\Mime\Builder;
 use MailSimply\Mime\Charset;
@@ -213,6 +214,7 @@ final class MimeTest extends TestCase
         self::assertSame([['name' => 'Doe, Jane', 'email' => 'jane@example.com']], Address::parseList($headers['to'][0]));
         self::assertSame([['name' => 'Kovács János', 'email' => 'janos@example.hu']], Address::parseList($headers['from'][0]));
         self::assertContains('multipart/mixed', $headers['content-type'][0]);
+        self::assertSame(['mail-simply/'.MailSimply::VERSION], $headers['user-agent'], 'The message names the release that wrote it.');
 
         // The pasted image became a part of its own, referenced by cid:.
         self::assertContains('multipart/related', $sent);

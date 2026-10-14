@@ -42,7 +42,7 @@ final class Http
             self::json(['error' => $lang->get($e->getMessage(), $e->replace)], $e->status);
         }
 
-        error_log('mail-simply: '.$e);
+        Log::error('Unhandled error.', ['error' => $e, 'trace' => explode("\n", $e->getTraceAsString())]);
         self::json(['error' => $lang->get('Something went wrong. The error has been logged.')], 500);
     }
 
@@ -53,7 +53,7 @@ final class Http
     public static function textError(\Throwable $e, Lang $lang): never
     {
         if (! $e instanceof UserError) {
-            error_log('mail-simply: '.$e);
+            Log::error('Unhandled error.', ['error' => $e, 'trace' => explode("\n", $e->getTraceAsString())]);
             $e = new UserError('Something went wrong. The error has been logged.', 500);
         }
 

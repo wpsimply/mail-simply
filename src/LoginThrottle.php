@@ -80,7 +80,7 @@ final class LoginThrottle
     private function record(string $kind, string $subject): void
     {
         if (! is_dir($this->directory) && ! @mkdir($this->directory, 0700, true) && ! is_dir($this->directory)) {
-            error_log('mail-simply: the login throttle directory cannot be created: '.$this->directory);
+            Log::error('The login throttle directory cannot be created.', ['directory' => $this->directory]);
 
             return;
         }

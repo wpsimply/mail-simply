@@ -16,6 +16,20 @@ final class Client
     /** @var array<string, string> */
     private array $extensions = [];
 
+    /**
+     * The conversation so far, credentials left out, for the log when it
+     * goes wrong.
+     *
+     * @var list<string>
+     */
+    private array $transcript = [];
+
+    /**
+     * The code of the last reply, so that what answers a 334 challenge (a
+     * user name or password) never reaches the transcript.
+     */
+    private int $lastCode = 0;
+
     private function __construct(private readonly Socket $socket, private readonly string $hostname)
     {
         $this->expect([220]);
@@ -95,8 +109,19 @@ final class Client
         // Dot-stuffing: a line that starts with a dot gets another one, so
         // the line holding the lone dot below is the only one that ends it.
         $data = (string) preg_replace('/^\./m', '..', (string) preg_replace('/\r\n?|\n/', "\r\n", $message));
+        $this->transcript[] = sprintf('C: <message, %d bytes>', strlen($data));
         $this->socket->write($data.(str_ends_with($data, "\r\n") ? '' : "\r\n").".\r\n");
         $this->expect([250]);
+    }
+
+    /**
+     * The conversation so far, with every credential redacted.
+     *
+     * @return list<string>
+     */
+    public function transcript(): array
+    {
+        return $this->transcript;
     }
 
     public function quit(): void
@@ -137,6 +162,12 @@ final class Client
      */
     private function command(string $command, array $expected): array
     {
+        $this->transcript[] = 'C: '.match (true) {
+            str_starts_with($command, 'AUTH ') => implode(' ', array_slice(explode(' ', $command), 0, 2)).' [redacted]',
+            $this->lastCode === 334 => '[redacted]',
+            default => $command,
+        };
+
         $this->socket->write($command."\r\n");
 
         return $this->expect($expected);
@@ -155,6 +186,9 @@ final class Client
             $code = (int) substr($line, 0, 3);
             $lines[] = rtrim(substr($line, 4), "\r\n");
         } while (($line[3] ?? ' ') === '-');
+
+        $this->lastCode = $code;
+        $this->transcript[] = 'S: '.$code.' '.implode(' | ', $lines);
 
         if (! in_array($code, $expected, true)) {
             throw new Rejected($code.' '.implode(' ', $lines));

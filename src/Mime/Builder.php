@@ -6,6 +6,7 @@ namespace MailSimply\Mime;
 
 use DateTimeImmutable;
 use DateTimeInterface;
+use MailSimply\MailSimply;
 
 /**
  * Writes an outgoing message: headers, a plain-text body (and an HTML one
@@ -137,7 +138,7 @@ final class Builder
         }
 
         $headers['MIME-Version'] = '1.0';
-        $headers['User-Agent'] = 'Mail Simply';
+        $headers['User-Agent'] = MailSimply::userAgent();
 
         [$contentHeaders, $body] = $this->body();
 

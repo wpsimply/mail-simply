@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use MailSimply\Config;
 use MailSimply\Env;
+use MailSimply\Log;
 
 if (PHP_VERSION_ID < 80400) {
     http_response_code(500);
@@ -63,4 +64,7 @@ try {
     exit($e->getMessage());
 }
 
-return Config::load($home);
+$config = Config::load($home);
+Log::configure($config);
+
+return $config;

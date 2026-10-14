@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use MailSimply\Http;
+use MailSimply\Log;
 use MailSimply\Session;
 use MailSimply\SignOn;
 
@@ -42,7 +43,7 @@ $token = (string) ($_GET['token'] ?? '');
 try {
     $mailbox = (new SignOn($config))->redeem($token, $session->signOnProof());
 } catch (Throwable $e) {
-    error_log('mail-simply: '.$e->getMessage());
+    Log::error('Redeeming a sign-on token failed.', ['error' => $e->getMessage()]);
     $mailbox = null;
 }
 

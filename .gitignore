@@ -10,6 +10,8 @@
 !/storage/uploads/.gitignore
 /storage/throttle/*
 !/storage/throttle/.gitignore
+/storage/logs/*
+!/storage/logs/.gitignore
 .DS_Store
 .idea/
 .vscode/

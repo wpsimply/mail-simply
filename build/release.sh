@@ -18,6 +18,15 @@ case "$version" in
 esac
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
+
+# The version lives in src/MailSimply.php; a tag that disagrees with it would
+# ship an archive whose mail claims to come from another release.
+declared="$(sed -n "s/.*const string VERSION = '\(.*\)';.*/\1/p" "$root/src/MailSimply.php")"
+
+if [ "$declared" != "$version" ]; then
+    echo "Tag $version does not match MailSimply::VERSION ($declared)." >&2
+    exit 1
+fi
 mkdir -p "$out_dir"
 out_dir="$(cd "$out_dir" && pwd)"
 stage="$(mktemp -d)"
@@ -31,11 +40,10 @@ for path in bootstrap.php src public lang .env.example config.example.php LICENS
     cp -R "$root/$path" "$app/"
 done
 
-printf '%s\n' "$version" > "$app/VERSION"
 
 # Writable at runtime, empty in the archive.
-mkdir -p "$app/storage/sessions" "$app/storage/users" "$app/storage/uploads" "$app/storage/throttle"
-chmod 700 "$app/storage/sessions" "$app/storage/users" "$app/storage/uploads" "$app/storage/throttle"
+mkdir -p "$app/storage/sessions" "$app/storage/users" "$app/storage/uploads" "$app/storage/throttle" "$app/storage/logs"
+chmod 700 "$app/storage/sessions" "$app/storage/users" "$app/storage/uploads" "$app/storage/throttle" "$app/storage/logs"
 
 # Nothing from a developer's machine or git may ride along.
 find "$app" \( -name '.git*' -o -name '.DS_Store' -o -name '*.swp' \) -exec rm -rf {} +

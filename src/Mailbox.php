@@ -1017,7 +1017,7 @@ final class Mailbox
         }
 
         if ($e instanceof RuntimeException && (str_contains($e->getMessage(), 'Could not connect') || str_contains($e->getMessage(), 'stopped answering') || str_contains($e->getMessage(), 'closed the connection') || str_contains($e->getMessage(), 'TLS negotiation') || str_contains($e->getMessage(), 'does not offer STARTTLS'))) {
-            error_log('mail-simply: '.$e->getMessage());
+            Log::error('The mail server could not be reached.', ['error' => $e->getMessage()]);
 
             return new UserError('The mail server cannot be reached right now. Try again in a moment.', 503);
         }

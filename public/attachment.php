@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use MailSimply\Http;
+use MailSimply\Log;
 use MailSimply\Mailbox;
 use MailSimply\Session;
 use MailSimply\UserError;
@@ -81,7 +82,7 @@ try {
     }
 } catch (Throwable $e) {
     if (headers_sent()) {
-        error_log('mail-simply: '.$e);
+        Log::error('Streaming an attachment failed.', ['error' => $e]);
         exit;
     }
 

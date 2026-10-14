@@ -8,9 +8,13 @@ use MailSimply\Api;
 use MailSimply\Config;
 use MailSimply\Env;
 use MailSimply\Lang;
+use MailSimply\Log;
+use MailSimply\MailSimply;
 use MailSimply\Preferences;
 use MailSimply\Session;
 use MailSimply\SignOn;
+use MailSimply\Smtp\Client as Smtp;
+use MailSimply\Smtp\Rejected;
 use MailSimply\Uploads;
 use MailSimply\UserError;
 use RuntimeException;
@@ -188,7 +192,8 @@ final class UnitTest extends TestCase
         $dir = $this->tempDir();
         file_put_contents($dir.'/router.php', <<<'PHP'
             <?php
-            $ok = ($_SERVER['REQUEST_METHOD'] === 'POST') && (($_SERVER['HTTP_AUTHORIZATION'] ?? '') === 'Bearer panel-secret');
+            $ok = ($_SERVER['REQUEST_METHOD'] === 'POST') && (($_SERVER['HTTP_AUTHORIZATION'] ?? '') === 'Bearer panel-secret')
+                && (($_SERVER['HTTP_USER_AGENT'] ?? '') === 'mail-simply/'.getenv('MAIL_SIMPLY_TEST_VERSION'));
             if ($ok && $_SERVER['REQUEST_URI'] === '/sessions/'.str_repeat('a', 64)) {
                 header('Content-Type: application/json');
                 echo json_encode(['address' => 'alice@example.test', 'name' => 'Alice Anderson']);
@@ -200,7 +205,7 @@ final class UnitTest extends TestCase
         $port = random_int(40000, 49000);
         // Failed redemptions are logged; not into the test output.
         $log = ini_set('error_log', '/dev/null');
-        $server = proc_open([PHP_BINARY, '-S', '127.0.0.1:'.$port, $dir.'/router.php'], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+        $server = proc_open([PHP_BINARY, '-S', '127.0.0.1:'.$port, $dir.'/router.php'], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, null, ['MAIL_SIMPLY_TEST_VERSION' => MailSimply::VERSION]);
 
         try {
             for ($i = 0; $i < 50 && @fsockopen('127.0.0.1', $port) === false; $i++) {
@@ -220,6 +225,79 @@ final class UnitTest extends TestCase
             proc_terminate($server);
             proc_close($server);
             ini_set('error_log', (string) $log);
+        }
+    }
+
+    public function testTheLogWritesOneLineWithWhatItWasAbout(): void
+    {
+        $path = $this->tempDir().'/logs/mail-simply.log';
+
+        try {
+            Log::configure(Config::fromArray('/app', ['log' => ['path' => $path]]));
+            Log::error('Sending failed.', ['address' => 'alice@example.test', 'error' => new RuntimeException('Could not connect')]);
+            Log::info('Message sent.');
+        } finally {
+            Log::configure(Config::fromArray('/app', ['log' => ['path' => '/dev/null']]));
+        }
+
+        $lines = file($path, FILE_IGNORE_NEW_LINES) ?: [];
+
+        self::assertSame(2, count($lines), 'The directory is created, and each event is a line of its own.');
+        self::assertTrue(preg_match('/^\[\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ\] ERROR: Sending failed\. \{"address":"alice@example\.test","error":"RuntimeException: Could not connect at /', $lines[0]) === 1, $lines[0]);
+        self::assertTrue(str_ends_with($lines[1], '] INFO: Message sent.'), $lines[1]);
+    }
+
+    public function testTheSmtpTranscriptLeavesCredentialsOut(): void
+    {
+        $port = random_int(40000, 49000);
+        // Answered line by line: a server that accepts the sign-in and then
+        // refuses the recipient.
+        $script = <<<'PHP'
+            $server = stream_socket_server('tcp://127.0.0.1:'.$argv[1]);
+            while ($client = stream_socket_accept($server, 10)) {
+                fwrite($client, "220 test ESMTP\r\n");
+                while (($line = fgets($client)) !== false) {
+                    fwrite($client, match (true) {
+                        str_starts_with($line, 'EHLO') => "250-test\r\n250-AUTH PLAIN LOGIN\r\n250 8BITMIME\r\n",
+                        str_starts_with($line, 'AUTH') => "235 2.7.0 Authenticated\r\n",
+                        str_starts_with($line, 'RCPT') => "550 5.1.1 No such user\r\n",
+                        str_starts_with($line, 'QUIT') => "221 Bye\r\n",
+                        default => "250 Ok\r\n",
+                    });
+                }
+            }
+            PHP;
+        $server = proc_open([PHP_BINARY, '-r', $script, (string) $port], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+
+        try {
+            for ($i = 0; $i < 50 && ($smtp = self::trySmtp($port)) === null; $i++) {
+                usleep(50000);
+            }
+
+            self::assertTrue($smtp !== null, 'The test SMTP server did not start.');
+            $smtp->authenticate('webmail@example.test', 'master-secret', 'alice@example.test');
+            $rejected = self::assertThrows(Rejected::class, static fn () => $smtp->send('alice@example.test', ['nobody@example.test'], "Subject: x\r\n\r\nx"));
+            $transcript = implode("\n", $smtp->transcript());
+            $smtp->quit();
+        } finally {
+            proc_terminate($server);
+            proc_close($server);
+        }
+
+        self::assertSame('nobody@example.test', $rejected->recipient);
+        self::assertContains('C: AUTH PLAIN [redacted]', $transcript);
+        self::assertContains('C: RCPT TO:<nobody@example.test>', $transcript);
+        self::assertContains('S: 550 5.1.1 No such user', $transcript);
+        self::assertNotContains('master-secret', $transcript);
+        self::assertNotContains(base64_encode("alice@example.test\0webmail@example.test\0master-secret"), $transcript);
+    }
+
+    private static function trySmtp(int $port): ?Smtp
+    {
+        try {
+            return Smtp::connect(['host' => '127.0.0.1', 'port' => $port, 'encryption' => 'none', 'verify' => false, 'ca_file' => null, 'timeout' => 5], 'localhost');
+        } catch (RuntimeException) {
+            return null;
         }
     }
 }

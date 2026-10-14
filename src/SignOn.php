@@ -63,7 +63,7 @@ final class SignOn
 
         if ($status !== 200) {
             // Never the token itself: logs are not as private as it has to be.
-            error_log(sprintf('mail-simply: redeeming a sign-on token failed with status %d.', $status));
+            Log::warning('Redeeming a sign-on token failed.', ['status' => $status]);
 
             return null;
         }
@@ -93,13 +93,13 @@ final class SignOn
         $binding = $payload['binding'] ?? null;
 
         if ($binding === null && $this->config->bool('sso.require_binding')) {
-            error_log('mail-simply: a sign-on token that is not bound to a browser was refused.');
+            Log::warning('A sign-on token that is not bound to a browser was refused.', ['address' => $address]);
 
             return null;
         }
 
         if ($binding !== null && (! is_string($binding) || $proof === null || ! hash_equals($binding, self::binding($proof)))) {
-            error_log('mail-simply: a sign-on token was opened in a browser other than the one it was issued to.');
+            Log::warning('A sign-on token was opened in a browser other than the one it was issued to.', ['address' => $address]);
 
             return null;
         }
@@ -118,7 +118,7 @@ final class SignOn
             throw new RuntimeException('The sign-on URL must be an http(s) URL.');
         }
 
-        $headers = ['Accept: application/json', 'Authorization: Bearer '.$secret, 'Content-Length: 0'];
+        $headers = ['Accept: application/json', 'Authorization: Bearer '.$secret, 'Content-Length: 0', 'User-Agent: '.MailSimply::userAgent()];
 
         if (function_exists('curl_init')) {
             $curl = curl_init($url);
