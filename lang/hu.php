@@ -193,6 +193,10 @@ return [
     'Language' => 'Nyelv',
     'Browser default' => 'A böngésző nyelve',
     'Images always shown from' => 'Képek mindig megjelennek innen',
+    'Recent problems' => 'Legutóbbi hibák',
+    'Nothing has gone wrong lately.' => 'Mostanában nem történt hiba.',
+    'Details' => 'Részletek',
+    'Clear' => 'Törlés',
     'Settings saved.' => 'Beállítások mentve.',
     'Your settings could not be saved.' => 'A beállításokat nem sikerült menteni.',
 

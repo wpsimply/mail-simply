@@ -11,6 +11,7 @@ use MailSimply\Lang;
 use MailSimply\Log;
 use MailSimply\MailSimply;
 use MailSimply\Preferences;
+use MailSimply\Problems;
 use MailSimply\Session;
 use MailSimply\SignOn;
 use MailSimply\Smtp\Client as Smtp;
@@ -290,6 +291,33 @@ final class UnitTest extends TestCase
         self::assertContains('S: 550 5.1.1 No such user', $transcript);
         self::assertNotContains('master-secret', $transcript);
         self::assertNotContains(base64_encode("alice@example.test\0webmail@example.test\0master-secret"), $transcript);
+    }
+
+    public function testProblemsAreKeptPerMailboxNewestFirstInTheReadersLanguage(): void
+    {
+        $dir = $this->tempDir();
+        $alice = new Problems($dir, 'alice@example.test');
+
+        $alice->record(new UserError('The mail server refused :address: :reason', 422, ['address' => 'nobody@example.test', 'reason' => '550 5.1.1 No such user']), ['subject' => 'Invoice', 'recipients' => ['nobody@example.test']]);
+        $alice->record(new UserError('Message sent, but no copy could be saved in Sent.', 500));
+
+        $problems = $alice->all(new Lang('en'));
+        self::assertSame(2, count($problems));
+        self::assertSame('Message sent, but no copy could be saved in Sent.', $problems[0]['message'], 'Newest first.');
+        self::assertSame('The mail server refused nobody@example.test: 550 5.1.1 No such user', $problems[1]['message']);
+        self::assertSame('Invoice', $problems[1]['subject']);
+        self::assertSame(['nobody@example.test'], $problems[1]['recipients']);
+        self::assertContains('A levelezőszerver elutasította ezt a címet: nobody@example.test', (new Problems($dir, 'ALICE@example.test'))->all(new Lang('hu'))[1]['message'], 'Read back in the language asked for, whatever the case of the address.');
+        self::assertSame([], (new Problems($dir, 'bob@example.test'))->all(new Lang('en')), 'Another mailbox sees none of them.');
+
+        for ($i = 0; $i < Problems::MAX + 5; $i++) {
+            $alice->record(new UserError('Add at least one recipient.'));
+        }
+
+        self::assertSame(Problems::MAX, count($alice->all(new Lang('en'))), 'Only the newest are kept.');
+
+        $alice->clear();
+        self::assertSame([], $alice->all(new Lang('en')));
     }
 
     private static function trySmtp(int $port): ?Smtp

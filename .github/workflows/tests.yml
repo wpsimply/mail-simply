@@ -36,10 +36,12 @@ jobs:
       - name: Validate composer.json
         run: composer validate --strict --no-check-publish
 
+      # Built as the declared version: the script refuses any other.
       - name: Release archive builds
         run: |
-          build/release.sh 0.0.0-ci /tmp/dist
-          unzip -l /tmp/dist/mail-simply-0.0.0-ci.zip
+          version="$(php -r 'require "src/MailSimply.php"; echo MailSimply\MailSimply::VERSION;')"
+          build/release.sh "$version" /tmp/dist
+          unzip -l "/tmp/dist/mail-simply-$version.zip"
 
   test:
     name: PHP ${{ matrix.php }}

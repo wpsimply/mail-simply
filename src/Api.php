@@ -17,11 +17,11 @@ use Throwable;
  */
 final class Api
 {
-    private const array READS = ['session', 'folders', 'messages', 'message', 'compose', 'contacts', 'poll'];
+    private const array READS = ['session', 'folders', 'messages', 'message', 'compose', 'contacts', 'poll', 'problems'];
 
     private const array WRITES = [
         'flag', 'move', 'delete', 'empty', 'mark-all-read', 'folder-create', 'folder-rename', 'folder-delete',
-        'send', 'draft', 'discard-draft', 'settings', 'trust', 'discard-upload', 'forget-contact',
+        'send', 'draft', 'discard-draft', 'settings', 'trust', 'discard-upload', 'forget-contact', 'clear-problems',
     ];
 
     private ?Mailbox $mailbox = null;
@@ -116,6 +116,14 @@ final class Api
 
             case 'discard-upload':
                 (new Uploads($this->config->string('storage.uploads'), $uploadKey))->delete((string) ($body['id'] ?? ''));
+
+                return [];
+
+            case 'problems':
+                return $this->problems($grant)->all($this->lang($preferences));
+
+            case 'clear-problems':
+                $this->problems($grant)->clear();
 
                 return [];
         }
@@ -232,16 +240,30 @@ final class Api
      */
     private function compose(Mailbox $mailbox, Preferences $preferences, array $grant, string $uploadKey): Compose
     {
-        $lang = new Lang(Lang::negotiate($preferences->language(), $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null, $this->config->string('language')));
-
         return new Compose(
             $this->config,
             $mailbox,
             $preferences,
             new Uploads($this->config->string('storage.uploads'), $uploadKey),
-            $lang,
+            $this->lang($preferences),
             $grant,
         );
+    }
+
+    /**
+     * The language the mailbox reads in: its own choice, then the browser's.
+     */
+    private function lang(Preferences $preferences): Lang
+    {
+        return new Lang(Lang::negotiate($preferences->language(), $_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? null, $this->config->string('language')));
+    }
+
+    /**
+     * @param  array{address: string, name: string, master: bool, password: ?string}  $grant
+     */
+    private function problems(array $grant): Problems
+    {
+        return new Problems($this->config->string('storage.users'), $grant['address']);
     }
 
     /**

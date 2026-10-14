@@ -7,9 +7,11 @@ namespace MailSimply\Tests;
 use MailSimply\Compose;
 use MailSimply\Config;
 use MailSimply\Lang;
+use MailSimply\Log;
 use MailSimply\Mailbox;
 use MailSimply\Mime\Header;
 use MailSimply\Preferences;
+use MailSimply\Problems;
 use MailSimply\Uploads;
 use MailSimply\UserError;
 
@@ -57,6 +59,30 @@ final class ComposeTest extends TestCase
         $contacts = new Preferences($config->string('storage.users'), self::ALICE);
         self::assertSame(['bob@example.test', 'hidden@example.test'], array_column($contacts->contacts(''), 'email'));
         self::assertSame([['name' => 'Bob', 'email' => self::BOB]], $contacts->contacts('bo'));
+    }
+
+    public function testAFailedSendIsLoggedAndKeptForTheMailbox(): void
+    {
+        $log = $this->tempDir().'/mail-simply.log';
+        $config = $this->config(['smtp' => ['host' => '127.0.0.1', 'port' => 1, 'timeout' => 2]]);
+        $compose = $this->compose($config, $this->mailbox(config: $config));
+
+        try {
+            Log::configure(Config::fromArray('/app', ['log' => ['path' => $log]]));
+            $error = self::assertThrows(UserError::class, static fn () => $compose->send(['to' => [['name' => 'Bob', 'email' => self::BOB]], 'subject' => 'Never arrives', 'text' => 'x']), 'cannot be reached');
+        } finally {
+            Log::configure(Config::fromArray('/app', ['log' => ['path' => '/dev/null']]));
+        }
+
+        self::assertSame(503, $error->status);
+        self::assertContains('Sending failed: the SMTP server could not be reached. {"address":"'.self::ALICE.'","server":"127.0.0.1:1 (none)","error":"Could not connect to 127.0.0.1:1', (string) file_get_contents($log));
+
+        $problems = (new Problems($config->string('storage.users'), self::ALICE))->all(new Lang('en'));
+        self::assertSame(1, count($problems));
+        self::assertSame('The mail server cannot be reached right now. Your message was not sent.', $problems[0]['message']);
+        self::assertSame('Never arrives', $problems[0]['subject']);
+        self::assertSame([self::BOB], $problems[0]['recipients']);
+        self::assertNotContains('127.0.0.1', json_encode($problems), 'Where the server is stays in the log.');
     }
 
     public function testInvalidRecipientsAreRefusedBeforeAnythingIsSent(): void

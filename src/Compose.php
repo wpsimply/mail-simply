@@ -166,7 +166,21 @@ final class Compose
             throw new UserError('Add at least one recipient.');
         }
 
-        $this->submit($message['builder']);
+        $problems = new Problems($this->config->string('storage.users'), $this->mailbox->address);
+        $about = [
+            'subject' => trim((string) ($input['subject'] ?? '')),
+            'recipients' => array_column([...$message['to'], ...$message['cc'], ...$message['bcc']], 'email'),
+        ];
+
+        try {
+            $this->submit($message['builder']);
+        } catch (Throwable $e) {
+            // Whatever submit() did not explain itself is the connection
+            // giving out part way, which is what the user is told anyway.
+            $problems->record($e instanceof UserError ? $e : new UserError('The mail server cannot be reached right now. Your message was not sent.', 503), $about);
+
+            throw $e;
+        }
 
         $savedToSent = true;
 
@@ -177,6 +191,7 @@ final class Compose
             // Sent is sent; a missing copy is reported, never a failure.
             Log::warning('Saving to the sent folder failed.', ['address' => $this->mailbox->address, 'error' => $e->getMessage()]);
             $savedToSent = false;
+            $problems->record(new UserError('Message sent, but no copy could be saved in Sent.', 500), $about);
         }
 
         $this->afterSending($input);

@@ -143,6 +143,7 @@ document.addEventListener('alpine:init', () => {
         suggestTimer: null,
         settingsForm: null,
         folderDialog: null,
+        problemsDialog: null,
         toasts: [],
 
         async init() {
@@ -1414,7 +1415,11 @@ document.addEventListener('alpine:init', () => {
             try {
                 const result = await this.api('send', {}, this.payload());
                 this.composer = null;
-                this.toast(result.savedToSent ? this.t('Message sent.') : this.t('Message sent, but no copy could be saved in Sent.'), result.savedToSent ? 'success' : 'error');
+                if (result.savedToSent) {
+                    this.toast(this.t('Message sent.'), 'success');
+                } else {
+                    this.toast(this.t('Message sent, but no copy could be saved in Sent.'), 'error', this.problemsAction());
+                }
 
                 if (this.message && composer.source?.uid === this.message.uid) {
                     this.message.flags[composer.source.mode === 'forward' ? 'forwarded' : 'answered'] = true;
@@ -1438,7 +1443,7 @@ document.addEventListener('alpine:init', () => {
                     this.autosaveTimer = window.setInterval(() => this.autosave(), AUTOSAVE_INTERVAL);
                 }
 
-                this.toast(error.message, 'error', null, 10000);
+                this.toast(error.message, 'error', this.problemsAction(), 10000);
             }
         },
 
@@ -1604,6 +1609,43 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // ---- Problems ----
+
+        async openProblems() {
+            this.problemsDialog = { loading: true, clearing: false, items: [] };
+
+            try {
+                const items = await this.api('problems');
+
+                if (this.problemsDialog) {
+                    this.problemsDialog.items = items;
+                    this.problemsDialog.loading = false;
+                }
+            } catch (error) {
+                this.problemsDialog = null;
+                this.toast(error.message, 'error');
+            }
+        },
+
+        async clearProblems() {
+            const dialog = this.problemsDialog;
+            dialog.clearing = true;
+
+            try {
+                await this.api('clear-problems', {}, {});
+                dialog.items = [];
+            } catch (error) {
+                this.toast(error.message, 'error');
+            } finally {
+                dialog.clearing = false;
+            }
+        },
+
+        // The toast button that leads from a failed send to its record.
+        problemsAction() {
+            return { label: this.t('Details'), run: () => this.openProblems() };
+        },
+
         // ---- Keyboard ----
 
         shortcut(event) {
@@ -1611,7 +1653,7 @@ document.addEventListener('alpine:init', () => {
             const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target instanceof HTMLSelectElement || target?.isContentEditable;
 
             if (event.key === 'Escape') {
-                if (this.composer || this.settingsForm || this.folderDialog) {
+                if (this.composer || this.settingsForm || this.folderDialog || this.problemsDialog) {
                     return;
                 }
 
@@ -1627,7 +1669,7 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
-            if (typing || this.composer || this.settingsForm || this.folderDialog || event.metaKey || event.ctrlKey || event.altKey) {
+            if (typing || this.composer || this.settingsForm || this.folderDialog || this.problemsDialog || event.metaKey || event.ctrlKey || event.altKey) {
                 return;
             }
 

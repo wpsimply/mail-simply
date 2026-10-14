@@ -107,6 +107,7 @@ if ($grant === null) {
                     <span class="muted small" x-text="address"></span>
                 </div>
                 <button type="button" @click="openSettings()" x-text="t('Settings')"></button>
+                <button type="button" @click="openProblems()" x-text="t('Recent problems')"></button>
 <?php if ($supportUrl !== '') { ?>
                 <a href="<?= $e($supportUrl) ?>" target="_blank" rel="noopener" x-text="t('Help')"></a>
 <?php } ?>
@@ -503,6 +504,33 @@ if ($grant === null) {
                     <button type="submit" class="button primary" :disabled="settingsForm.saving" x-text="t('Save')"></button>
                 </footer>
             </form>
+        </div>
+    </template>
+
+    <!-- Recent problems -->
+    <template x-if="problemsDialog">
+        <div class="modal-backdrop" @click.self="problemsDialog = null" @keydown.escape.window="problemsDialog = null">
+            <div class="modal" role="dialog" aria-modal="true" :aria-label="t('Recent problems')">
+                <header><h2 x-text="t('Recent problems')"></h2></header>
+                <p class="muted" x-show="problemsDialog.loading" x-text="t('Loading…')"></p>
+                <p class="muted" x-show="!problemsDialog.loading && !problemsDialog.items.length" x-text="t('Nothing has gone wrong lately.')"></p>
+                <ul class="problems" x-show="problemsDialog.items.length">
+                    <template x-for="(item, index) in problemsDialog.items" :key="index + item.time">
+                        <li>
+                            <div class="problem-head">
+                                <strong x-text="item.subject || t('(no subject)')"></strong>
+                                <span class="muted small" x-text="longDate(item.time)"></span>
+                            </div>
+                            <div class="muted small" x-show="item.recipients.length" x-text="t('To') + ': ' + item.recipients.join(', ')"></div>
+                            <div class="problem-message" x-text="item.message"></div>
+                        </li>
+                    </template>
+                </ul>
+                <footer>
+                    <button type="button" class="button ghost danger" x-show="problemsDialog.items.length" @click="clearProblems()" :disabled="problemsDialog.clearing" x-text="t('Clear')"></button>
+                    <button type="button" class="button primary" @click="problemsDialog = null" x-text="t('Close')"></button>
+                </footer>
+            </div>
         </div>
     </template>
 
